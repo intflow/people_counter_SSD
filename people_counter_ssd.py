@@ -24,7 +24,7 @@ from imutils.video import FPS
 import serial
 import base64
 import cv2
-import zmq
+#import zmq
 import sys
 from pytz import timezone
 from datetime import datetime
