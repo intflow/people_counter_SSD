@@ -109,7 +109,7 @@ def classify_frame(net, inputQueue, outputQueue):
             # write the detections to the output queue
             outputQueue.put(detections)
 
-def main(args, inputQueue, outputQueue):
+def main(args, inputQueue, outputQueue, detections):
 
 	try:
 		# Set UART initialization
@@ -510,6 +510,7 @@ if __name__ == '__main__':
 	# and the list of actual detections returned by the child process
 	inputQueue = Queue(maxsize=1)
 	outputQueue = Queue(maxsize=1)
+	detections = None
 
 	# construct a child process *indepedent* from our main process of
 	# execution
@@ -519,4 +520,4 @@ if __name__ == '__main__':
 	p.start()
 #	p.join()
 
-	main(args, inputQueue, outputQueue)
+	main(args, inputQueue, outputQueue, detections)
