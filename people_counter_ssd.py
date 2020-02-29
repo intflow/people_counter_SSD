@@ -225,6 +225,10 @@ def main(args, inputQueue, outputQueue):
 				rects = [] #purge rects buffer
 				classes = [] 
 
+				# if the output queue *is not* empty, grab the detections
+				if not outputQueue.empty():
+					detections = outputQueue.get()
+
 				#update current time
 				time_fmt = "%Y-%m-%d-%H:%M"
 				time_now = datetime.now(timezone('Asia/Seoul')).strftime(time_fmt)
@@ -247,49 +251,49 @@ def main(args, inputQueue, outputQueue):
 					blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
 					net.setInput(blob)
 					##detections = net.forward()
-					
-					# if the output queue *is not* empty, grab the detections
-					if not outputQueue.empty():
-						detections = outputQueue.get()
 
-					# loop over the detections
-					for i in np.arange(0, detections.shape[2]):
-						# extract the confidence (i.e., probability) associated
-						# with the prediction
-						confidence = detections[0, 0, i, 2]
+					# check to see if our detectios are not None (and if so, we'll
+					# draw the detections on the frame)
+					if detections is not None: 
 
-						# filter out weak detections by requiring a minimum
-						# confidence
-						if confidence > args["confidence"]:
-							# extract the index of the class label from the
-							# detections list
-							idx = int(detections[0, 0, i, 1])
+						# loop over the detections
+						for i in np.arange(0, detections.shape[2]):
+							# extract the confidence (i.e., probability) associated
+							# with the prediction
+							confidence = detections[0, 0, i, 2]
 
-							# if the class label is not a person, ignore it
-							if not(CLASSES[idx] == "person"):
-								continue
+							# filter out weak detections by requiring a minimum
+							# confidence
+							if confidence > args["confidence"]:
+								# extract the index of the class label from the
+								# detections list
+								idx = int(detections[0, 0, i, 1])
 
-							# compute the (x, y)-coordinates of the bounding box
-							# for the object
-							box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
-							(startX, startY, endX, endY) = box.astype('long')  
+								# if the class label is not a person, ignore it
+								if not(CLASSES[idx] == "person"):
+									continue
+
+								# compute the (x, y)-coordinates of the bounding box
+								# for the object
+								box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
+								(startX, startY, endX, endY) = box.astype('long')  
+								
+								# construct a dlib rectangle object from the bounding
+								# box coordinates and then start the dlib correlation
+								# tracker
+								tracker = dlib.correlation_tracker()# grab the new bounding box coordinates of the object
 							
-							# construct a dlib rectangle object from the bounding
-							# box coordinates and then start the dlib correlation
-							# tracker
-							tracker = dlib.correlation_tracker()# grab the new bounding box coordinates of the object
-						
-							rect = dlib.rectangle(int(startX), int(startY), int(endX), int(endY))
-							##(success, box) = tracker.update(frame)
-							##(x, y, w, h) = [int(v) for v in box]
-							##cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+								rect = dlib.rectangle(int(startX), int(startY), int(endX), int(endY))
+								##(success, box) = tracker.update(frame)
+								##(x, y, w, h) = [int(v) for v in box]
+								##cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-							tracker.start_track(rgb, rect)
+								tracker.start_track(rgb, rect)
 
-							# add the tracker to our list of trackers so we can
-							# utilize it during skip frames
-							trackers.append(tracker)
-							idx_stack.append(idx)
+								# add the tracker to our list of trackers so we can
+								# utilize it during skip frames
+								trackers.append(tracker)
+								idx_stack.append(idx)
 							
 				# otherwise, we should utilize our object *trackers* rather than
 				# object *detectors* to obtain a higher frame processing throughput
