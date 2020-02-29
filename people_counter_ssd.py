@@ -28,7 +28,8 @@ import cv2
 import sys
 from pytz import timezone
 from datetime import datetime
-from threading import Thread
+#from threading import Thread
+from multiprocessing import Process, Queue
 from time import sleep
 
 #number formatter
@@ -89,11 +90,7 @@ def init_ipcam():
 		
 		return vs, vs2, TWOCAM
 
-ret = -1
-frame = []
-def thread_vid(args, vs):
-	global ret
-	global frame
+def thread_vid(args, vs, outQue1, outQue2):
 	while True:
 		ret, frame = vs.read()
 		if not(ret):
@@ -113,7 +110,9 @@ def thread_vid(args, vs):
 		(H, W) = frame.shape[:2]
 		r_x = W_org / W
 		r_y = H_org / H		
-		sleep(0.03333)
+
+		outQue1.put(ret)
+		outQue2.put(frame)
 
 
 		# show the output frame
@@ -211,14 +210,18 @@ def main(args):
 		vs = cv2.VideoCapture(args["input"])
 		TWOCAM = 0	
 
-	Thread(target=thread_vid, args=(args, vs)).start()
-	global ret
-	global frame
+	outQue1 = Queue(maxsize=1)
+	outQue2 = Queue(maxsize=1)
+	p = Process(target=thread_vid, args=(args, vs, outQue1, outQue2))
+	p.daemon = True
+	p.start()
+	p.join()
 
-	sleep(1)
 	# loop over frames from the video stream
 	while True:
+		ret = outQue1.get()
 		if ret:
+			frame = outQue2.get()
 			# if we are viewing a video and we did not grab a frame then we
 			# have reached the end of the video
 			if args["input"] is not None and frame is None:
