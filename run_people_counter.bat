@@ -5,7 +5,7 @@ python people_counter_ssd.py ^
 	--skip-frames 5 ^
 	--uart_port "/dev/ttyS0" ^
 	--uart_baud 9600 ^
-	--input "..\vid_in\example_01.mp4" ^
+	--input "example_01.mp4" ^
 	--output "" ^
 	--screen 1
 
