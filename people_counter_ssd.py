@@ -203,11 +203,11 @@ def main(args, inputQueue, outputQueue, detections):
 				# resize the frame to have a minimum width(or height) supported by a model, then convert
 				# the frame from BGR to RGB for dlib
 				(H_org, W_org) = frame.shape[:2]
-				W = 160
-				H = 160
+				W = args["resize_frame"]
+				H = args["resize_frame"]
 				frame_org = frame
 				ratio = H / W
-				frame = cv2.resize(frame, dsize=(160,160), interpolation=cv2.INTER_AREA)
+				frame = cv2.resize(frame, dsize=(W,H), interpolation=cv2.INTER_AREA)
 				(H, W) = frame.shape[:2]
 				r_x = W_org / W
 				r_y = H_org / H
@@ -466,7 +466,7 @@ if __name__ == '__main__':
 		help="minimum probability to filter weak detections")
 	ap.add_argument("-s", "--skip-frames", type=int, default=5,
 		help="# of skip frames between detections")
-	ap.add_argument("-rf", "--resize-frame", type=int, default=320,
+	ap.add_argument("-rf", "--resize_frame", type=int, default=160,
 		help="minimum video frame's size for a given model")
 	ap.add_argument("-od", "--object-diff", type=int, default=0.5,
 		help="count threshold according to object's position difference")
