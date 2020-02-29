@@ -513,6 +513,6 @@ if __name__ == '__main__':
 	p = Process(target=classify_frame, args=(net, inputQueue, outputQueue,))
 	p.daemon = True
 	p.start()
-	p.join()
-	
+#	p.join()
+
 	main(args, inputQueue, outputQueue)
