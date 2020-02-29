@@ -119,6 +119,7 @@ def main(args, inputQueue, outputQueue, detections):
 			UART_WORK = 1
 			ser.write(bytes('---AIcam Start---\r\n', encoding='ascii'))
 	except:
+		print("----UART connection failed!----")
 		UART_WORK = 0
 
 
@@ -170,264 +171,229 @@ def main(args, inputQueue, outputQueue, detections):
 
 	# loop over frames from the video stream
 	while True:
-		if 1:
-			# grab the next frame and handle if we are reading from either
-			# VideoCapture or VideoStream
-			ret, frame = vs.read()
-			##frame = frame[1] if args.get("input", False) else frame
-			if TWOCAM == 1:
-				ret2, frame2 = vs2.read()			 
-			
-			if not(ret):
-				vs = cv2.VideoCapture(args["input"])
-				continue
-
-			if ret:
-				if TWOCAM:
-					if ret2:
-						frame = np.concatenate((frame, frame2), axis=0) #1280x720x2 = 1280x1440
-					else:
-						frame = np.concatenate((frame, frame), axis=0)
-					frame = frame[80:-80,:] #1280x1280
-
-				# if we are viewing a video and we did not grab a frame then we
-				# have reached the end of the video
-				if args["input"] is not None and frame is None:
-					break
-
-				#Cut display frame by half
-				(H, W) = frame.shape[:2]
-				W_cut = int(W*0.15)
-				frame = frame[:,W_cut:-W_cut,:]
-				
-				# resize the frame to have a minimum width(or height) supported by a model, then convert
-				# the frame from BGR to RGB for dlib
-				(H_org, W_org) = frame.shape[:2]
-				W = args["resize_frame"]
-				H = args["resize_frame"]
-				frame_org = frame
-				ratio = H / W
-				frame = cv2.resize(frame, dsize=(W,H), interpolation=cv2.INTER_AREA)
-				(H, W) = frame.shape[:2]
-				r_x = W_org / W
-				r_y = H_org / H
-				rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-				if inputQueue.empty():
-					inputQueue.put(frame) 
-
-				# initialize the current status along with our list of bounding
-				# box rectangles returned by either (1) our object detector or
-				# (2) the correlation trackers
-				status = "Waiting"
-				rects = [] #purge rects buffer
-				classes = [] 
-
-				# if the output queue *is not* empty, grab the detections
-				if not outputQueue.empty():
-					detections = outputQueue.get()
-
-				#update current time
-				time_fmt = "%Y-%m-%d-%H:%M"
-				time_now = datetime.now(timezone('Asia/Seoul')).strftime(time_fmt)
-				if datetime.now(timezone('Asia/Seoul')).strftime('%H:%M') == '23:59':
-					totalDown_p = 0
-					totalUp_p = 0
-					totalDown_v = 0
-					totalUp_v = 0
-					totalUp_m = 0
-
-				# check to see if we should run a more computationally expensive object detection method to aid our tracker
-				if totalFrames % args["skip_frames"] == 0:
-					# set the status and initialize our new set of object trackers
-					status = "Detecting"
-					trackers = []
-					idx_stack = []
-
-					# convert the frame to a blob and pass the blob through the
-					# network and obtain the detections
-					blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
-					net.setInput(blob)
-					##detections = net.forward()
-
-					# check to see if our detectios are not None (and if so, we'll
-					# draw the detections on the frame)
-					if detections is not None: 
-
-						# loop over the detections
-						for i in np.arange(0, detections.shape[2]):
-							# extract the confidence (i.e., probability) associated
-							# with the prediction
-							confidence = detections[0, 0, i, 2]
-
-							# filter out weak detections by requiring a minimum
-							# confidence
-							if confidence > args["confidence"]:
-								# extract the index of the class label from the
-								# detections list
-								idx = int(detections[0, 0, i, 1])
-
-								# if the class label is not a person, ignore it
-								if not(CLASSES[idx] == "person"):
-									continue
-
-								# compute the (x, y)-coordinates of the bounding box
-								# for the object
-								box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
-								(startX, startY, endX, endY) = box.astype('long')  
-								
-								# construct a dlib rectangle object from the bounding
-								# box coordinates and then start the dlib correlation
-								# tracker
-								tracker = dlib.correlation_tracker()# grab the new bounding box coordinates of the object
-							
-								rect = dlib.rectangle(int(startX), int(startY), int(endX), int(endY))
-								##(success, box) = tracker.update(frame)
-								##(x, y, w, h) = [int(v) for v in box]
-								##cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-								tracker.start_track(rgb, rect)
-
-								# add the tracker to our list of trackers so we can
-								# utilize it during skip frames
-								trackers.append(tracker)
-								idx_stack.append(idx)
-							
-				# otherwise, we should utilize our object *trackers* rather than
-				# object *detectors* to obtain a higher frame processing throughput
+		# grab the next frame and handle if we are reading from either
+		# VideoCapture or VideoStream
+		ret, frame = vs.read()
+		##frame = frame[1] if args.get("input", False) else frame
+		if TWOCAM == 1:
+			ret2, frame2 = vs2.read()			 
+		
+		if not(ret):
+			vs = cv2.VideoCapture(args["input"])
+			continue
+		if ret:
+			if TWOCAM:
+				if ret2:
+					frame = np.concatenate((frame, frame2), axis=0) #1280x720x2 = 1280x1440
 				else:
-					idx_cnt = 0
-					# loop over the trackers
-					for tracker in trackers:
-						# set the status of our system to be 'tracking' rather
-						# than 'waiting' or 'detecting'
-						status = "Tracking"
-
-						# update the tracker and grab the updated position
-						tracker.update(rgb)
-						pos = tracker.get_position()
-
-						# unpack the position object
-						startX = int(pos.left())
-						startY = int(pos.top())
-						endX = int(pos.right())
-						endY = int(pos.bottom())
-
-						# add the bounding box coordinates to the rectangles list
-						rects.append((startX, startY, endX, endY))
+					frame = np.concatenate((frame, frame), axis=0)
+				frame = frame[80:-80,:] #1280x1280
+			# if we are viewing a video and we did not grab a frame then we
+			# have reached the end of the video
+			if args["input"] is not None and frame is None:
+				break
+			#Cut display frame by half
+			(H, W) = frame.shape[:2]
+			W_cut = int(W*0.15)
+			frame = frame[:,W_cut:-W_cut,:]
+			
+			# resize the frame to have a minimum width(or height) supported by a model, then convert
+			# the frame from BGR to RGB for dlib
+			(H_org, W_org) = frame.shape[:2]
+			W = args["resize_frame"]
+			H = args["resize_frame"]
+			frame_org = frame
+			ratio = H / W
+			frame = cv2.resize(frame, dsize=(W,H), interpolation=cv2.INTER_AREA)
+			(H, W) = frame.shape[:2]
+			r_x = W_org / W
+			r_y = H_org / H
+			rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+			if inputQueue.empty():
+				inputQueue.put(frame) 
+			# initialize the current status along with our list of bounding
+			# box rectangles returned by either (1) our object detector or
+			# (2) the correlation trackers
+			status = "Waiting"
+			rects = [] #purge rects buffer
+			classes = [] 
+			# if the output queue *is not* empty, grab the detections
+			if not outputQueue.empty():
+				detections = outputQueue.get()
+			#update current time
+			time_fmt = "%Y-%m-%d-%H:%M"
+			time_now = datetime.now(timezone('Asia/Seoul')).strftime(time_fmt)
+			if datetime.now(timezone('Asia/Seoul')).strftime('%H:%M') == '23:59':
+				totalDown_p = 0
+				totalUp_p = 0
+				totalDown_v = 0
+				totalUp_v = 0
+				totalUp_m = 0
+			# check to see if we should run a more computationally expensive object detection method to aid our tracker
+			if totalFrames % args["skip_frames"] == 0:
+				# set the status and initialize our new set of object trackers
+				status = "Detecting"
+				trackers = []
+				idx_stack = []
+				# convert the frame to a blob and pass the blob through the
+				# network and obtain the detections
+				blob = cv2.dnn.blobFromImage(frame, 0.007843, (W, H), 127.5)
+				net.setInput(blob)
+				##detections = net.forward()
+				# check to see if our detectios are not None (and if so, we'll
+				# draw the detections on the frame)
+				if detections is not None: 
+					# loop over the detections
+					for i in np.arange(0, detections.shape[2]):
+						# extract the confidence (i.e., probability) associated
+						# with the prediction
+						confidence = detections[0, 0, i, 2]
+						# filter out weak detections by requiring a minimum
+						# confidence
+						if confidence > args["confidence"]:
+							# extract the index of the class label from the
+							# detections list
+							idx = int(detections[0, 0, i, 1])
+							# if the class label is not a person, ignore it
+							if not(CLASSES[idx] == "person"):
+								continue
+							# compute the (x, y)-coordinates of the bounding box
+							# for the object
+							box = detections[0, 0, i, 3:7] * np.array([W, H, W, H])
+							(startX, startY, endX, endY) = box.astype('long')  
+							
+							# construct a dlib rectangle object from the bounding
+							# box coordinates and then start the dlib correlation
+							# tracker
+							tracker = dlib.correlation_tracker()# grab the new bounding box coordinates of the object
 						
-						# draw the prediction on the frame
-						idx_target = idx_stack[idx_cnt]
-						if (CLASSES[idx_target] == "person"):
-							label = "{}: {:.2f}%".format(CLASSES[idx_target],
-								confidence * 100)
-							cv2.rectangle(frame, (startX, startY), (endX, endY),
-								COLORS[idx_target], 2)
-							y = startY - 15 if startY - 15 > 15 else startY + 15
-							cv2.putText(frame, label, (startX, y),
-								cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[idx_target], 2)   
+							rect = dlib.rectangle(int(startX), int(startY), int(endX), int(endY))
+							##(success, box) = tracker.update(frame)
+							##(x, y, w, h) = [int(v) for v in box]
+							##cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+							tracker.start_track(rgb, rect)
+							# add the tracker to our list of trackers so we can
+							# utilize it during skip frames
+							trackers.append(tracker)
+							idx_stack.append(idx)
 						
-						idx_cnt = idx_cnt + 1
-				# draw a horizontal line in the center of the frame -- once an
-				# object crosses this line we will determine whether they were
-				# moving 'up' or 'down'
-				#화각의 틸트 상태에 따라 튜닝 필요 (기울어질수록 UP_LINE을 DOWN_LINE 쪽으로 당긴다.
-				#DOWN_LINE = int(float(H) // 2.0)#1.2)
-				#UP_LINE = int(float(H) // 2.0)#7.6)
-				#cv2.line(frame, (0, DOWN_LINE), (W, DOWN_LINE), (255, 0, 0), 2)
-				#cv2.line(frame, (0, UP_LINE), (W, UP_LINE), (0, 0, 255), 2)
+			# otherwise, we should utilize our object *trackers* rather than
+			# object *detectors* to obtain a higher frame processing throughput
+			else:
+				idx_cnt = 0
+				# loop over the trackers
+				for tracker in trackers:
+					# set the status of our system to be 'tracking' rather
+					# than 'waiting' or 'detecting'
+					status = "Tracking"
+					# update the tracker and grab the updated position
+					tracker.update(rgb)
+					pos = tracker.get_position()
+					# unpack the position object
+					startX = int(pos.left())
+					startY = int(pos.top())
+					endX = int(pos.right())
+					endY = int(pos.bottom())
+					# add the bounding box coordinates to the rectangles list
+					rects.append((startX, startY, endX, endY))
+					
+					# draw the prediction on the frame
+					idx_target = idx_stack[idx_cnt]
+					if (CLASSES[idx_target] == "person"):
+						label = "{}: {:.2f}%".format(CLASSES[idx_target],
+							confidence * 100)
+						cv2.rectangle(frame, (startX, startY), (endX, endY),
+							COLORS[idx_target], 2)
+						y = startY - 15 if startY - 15 > 15 else startY + 15
+						cv2.putText(frame, label, (startX, y),
+							cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[idx_target], 2)   
+					
+					idx_cnt = idx_cnt + 1
+			# draw a horizontal line in the center of the frame -- once an
+			# object crosses this line we will determine whether they were
+			# moving 'up' or 'down'
+			#화각의 틸트 상태에 따라 튜닝 필요 (기울어질수록 UP_LINE을 DOWN_LINE 쪽으로 당긴다.
+			#DOWN_LINE = int(float(H) // 2.0)#1.2)
+			#UP_LINE = int(float(H) // 2.0)#7.6)
+			#cv2.line(frame, (0, DOWN_LINE), (W, DOWN_LINE), (255, 0, 0), 2)
+			#cv2.line(frame, (0, UP_LINE), (W, UP_LINE), (0, 0, 255), 2)
+			# use the centroid tracker to associate the (1) old object
+			# centroids with (2) the newly computed object centroids
+			objects = ct.update(rects)
+			# loop over the tracked objects
+			for (objectID, centroid) in objects.items():
+				# check to see if a trackable object exists for the current
+				# object ID
+				to = trackableObjects.get(objectID, None)
+				# if there is no existing trackable object, create one
+				if to is None:
+					to = TrackableObject(objectID, centroid)
+				# otherwise, there is a trackable object so we can utilize it
+				# to determine direction
+				else:
+					# the difference between the y-coordinate of the *current*
+					# centroid and the mean of *previous* centroids will tell
+					# us in which direction the object is moving (negative for
+					# 'up' and positive for 'down')
+					y = [c[1] for c in to.centroids]
+					direction = centroid[1] - np.mean(y)
+					to.centroids.append(centroid)
+					# check to see if the object has been counted or not
+					if not to.counted:
+						to.counted = True
+						# if the direction is negative (indicating the object
+						# is moving up) AND the centroid is above the center
+						# line, count the object
+						#if direction < 0 and centroid[1] < UP_LINE:
+						#	totalUp += 1
+						#	to.counted = True
 
-				# use the centroid tracker to associate the (1) old object
-				# centroids with (2) the newly computed object centroids
-				objects = ct.update(rects)
-
-				# loop over the tracked objects
-				for (objectID, centroid) in objects.items():
-					# check to see if a trackable object exists for the current
-					# object ID
-					to = trackableObjects.get(objectID, None)
-
-					# if there is no existing trackable object, create one
-					if to is None:
-						to = TrackableObject(objectID, centroid)
-
-					# otherwise, there is a trackable object so we can utilize it
-					# to determine direction
-					else:
-						# the difference between the y-coordinate of the *current*
-						# centroid and the mean of *previous* centroids will tell
-						# us in which direction the object is moving (negative for
-						# 'up' and positive for 'down')
-						y = [c[1] for c in to.centroids]
-						direction = centroid[1] - np.mean(y)
-						to.centroids.append(centroid)
-
-						# check to see if the object has been counted or not
-						if not to.counted:
-							to.counted = True
-							# if the direction is negative (indicating the object
-							# is moving up) AND the centroid is above the center
-							# line, count the object
-							#if direction < 0 and centroid[1] < UP_LINE:
-							#	totalUp += 1
-							#	to.counted = True
-#
-							## if the direction is positive (indicating the object
-							## is moving down) AND the centroid is below the
-							## center line, count the object
-							#elif direction > 0 and centroid[1] > DOWN_LINE:
-							#	totalDown += 1
-							#	to.counted = True
-
-					# store the trackable object in our dictionary
-					trackableObjects[objectID] = to
-
-					# draw both the ID of the object and the centroid of the
-					# object on the output frame
-					text = "ID {}".format(objectID)
-					cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10),
-						cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-					cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
-
-				# construct a tuple of information we will be displaying on the
-				# frame
-				num_person = len(objects.items())
-				info = [
-					("Num", num_person),
-					("Status", status),
-				]
-
-				# loop over the info tuples and draw them on our frame
-				for (i, (k, v)) in enumerate(info):
-					text = "{}: {}".format(k, v)
-					cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
-						cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-
-				# show the output frame
-				if args["screen"] == 1:
-					# check to see if we should write the frame to disk
-					if writer is not None:
-						writer.write(frame)
-
-					cv2.imshow("Frame", frame)
-					key = cv2.waitKey(1) & 0xFF
-
-					# if the `q` key was pressed, break from the loop
-					if key == ord("q"):
-						break
-
-				# increment the total number of frames processed thus far and
-				# then update the FPS counter
-				totalFrames += 1				
-				fps.update()
-
-				if totalFrames == 30:
-					totalFrames = 0
-					print(num_person)
-
-					if UART_WORK == 1:
-						ser.write(num_person.to_bytes(1, byteorder='little'))
-						print(num_person.to_bytes(1, byteorder='little'))
+						## if the direction is positive (indicating the object
+						## is moving down) AND the centroid is below the
+						## center line, count the object
+						#elif direction > 0 and centroid[1] > DOWN_LINE:
+						#	totalDown += 1
+						#	to.counted = True
+				# store the trackable object in our dictionary
+				trackableObjects[objectID] = to
+				# draw both the ID of the object and the centroid of the
+				# object on the output frame
+				text = "ID {}".format(objectID)
+				cv2.putText(frame, text, (centroid[0] - 10, centroid[1] - 10),
+					cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+				cv2.circle(frame, (centroid[0], centroid[1]), 4, (0, 255, 0), -1)
+			# construct a tuple of information we will be displaying on the
+			# frame
+			num_person = len(objects.items())
+			info = [
+				("Num", num_person),
+				("Status", status),
+			]
+			# loop over the info tuples and draw them on our frame
+			for (i, (k, v)) in enumerate(info):
+				text = "{}: {}".format(k, v)
+				cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
+					cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+			# show the output frame
+			if args["screen"] == 1:
+				# check to see if we should write the frame to disk
+				if writer is not None:
+					writer.write(frame)
+				cv2.imshow("Frame", frame)
+				key = cv2.waitKey(1) & 0xFF
+				# if the `q` key was pressed, break from the loop
+				if key == ord("q"):
+					break
+			# increment the total number of frames processed thus far and
+			# then update the FPS counter
+			totalFrames += 1				
+			fps.update()
+			if totalFrames == 30:
+				totalFrames = 0
+				print(num_person)
+				if UART_WORK == 1:
+					ser.write(num_person.to_bytes(1, byteorder='little'))
+					print(num_person.to_bytes(1, byteorder='little'))
 
 
 	# stop the timer and display FPS information
