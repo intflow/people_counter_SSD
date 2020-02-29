@@ -112,7 +112,7 @@ def main(args):
 		
 	#Color map for detection box
 	COLORS = np.random.uniform(0, 255, size=(len(CLASSES), 3))
-	COLORS[0] = [0, 51, 255] #person
+	COLORS[15] = [0, 0, 255] #person
 	#COLORS[1] = [102, 255, 255] #bicycle
 	#COLORS[2] = [255, 51, 0] #car
 	#COLORS[3] = [102, 255, 255] #motorbike
@@ -381,9 +381,9 @@ def main(args):
 
 				# construct a tuple of information we will be displaying on the
 				# frame
+				num_person = len(objects.items())
 				info = [
-					("Up", totalUp),
-					("Down", totalDown),
+					("Num", num_person),
 					("Status", status),
 				]
 
@@ -391,19 +391,20 @@ def main(args):
 				for (i, (k, v)) in enumerate(info):
 					text = "{}: {}".format(k, v)
 					cv2.putText(frame, text, (10, H - ((i * 20) + 20)),
-						cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-
-				# check to see if we should write the frame to disk
-				if writer is not None:
-					writer.write(frame)
+						cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
 				# show the output frame
-				cv2.imshow("Frame", frame)
-				key = cv2.waitKey(1) & 0xFF
+				if args["screen"] == 1:
+					# check to see if we should write the frame to disk
+					if writer is not None:
+						writer.write(frame)
 
-				# if the `q` key was pressed, break from the loop
-				if key == ord("q"):
-					break
+					cv2.imshow("Frame", frame)
+					key = cv2.waitKey(1) & 0xFF
+
+					# if the `q` key was pressed, break from the loop
+					if key == ord("q"):
+						break
 
 				# increment the total number of frames processed thus far and
 				# then update the FPS counter
@@ -412,7 +413,11 @@ def main(args):
 
 				if totalFrames == 30:
 					totalFrames = 0
-					print(len(objects.items()))
+					print(num_person)
+
+					if UART_WORK == 1:
+						ser.write(num_person.to_bytes(1, byteorder='little'))
+						print(num_person.to_bytes(1, byteorder='little'))
 
 
 	# stop the timer and display FPS information
@@ -439,17 +444,17 @@ def main(args):
 if __name__ == '__main__':
 	# construct the argument parse and parse the arguments
 	ap = argparse.ArgumentParser()
-	ap.add_argument("-p", "--prototxt", type=str, default="models/MobileNetSSD_deploy.prototxt.txt",
+	ap.add_argument("-p", "--prototxt", type=str, default="models/MobileNetSSD_deploy.prototxt",
 		help="path to Caffe 'deploy' prototxt file")
 	ap.add_argument("-m", "--model", type=str, default="models/MobileNetSSD_deploy.caffemodel",
 		help="path to Caffe pre-trained model")
-	ap.add_argument("-i", "--input", type=str, default="rtsp://admin:intflow3121@192.168.1.64:554/Streaming/Channels/101/",
+	ap.add_argument("-i", "--input", type=str, default="example_01.mp4",
 		help="path to optional input video file")
 	ap.add_argument("-o", "--output", type=str, default="",
 		help="path to optional output video file")
-	ap.add_argument("-c", "--confidence", type=float, default=0.005,
+	ap.add_argument("-c", "--confidence", type=float, default=0.3,
 		help="minimum probability to filter weak detections")
-	ap.add_argument("-s", "--skip-frames", type=int, default=4,
+	ap.add_argument("-s", "--skip-frames", type=int, default=5,
 		help="# of skip frames between detections")
 	ap.add_argument("-rf", "--resize-frame", type=int, default=320,
 		help="minimum video frame's size for a given model")
@@ -463,10 +468,12 @@ if __name__ == '__main__':
 		help="0: Up/Down, 1: Right/Left")
 	ap.add_argument("-ip", "--stream_ip", type=str, default="tcp://192.168.0.38:5555",
 		help="IP for stream to video server")
-	ap.add_argument("-up", "--uart_port", type=str, default="COM5",
+	ap.add_argument("-up", "--uart_port", type=str, default="/dev/ttyS0",
 		help="port number for UART communication")
 	ap.add_argument("-ub", "--uart_baud", type=int, default=9600,
 		help="baud rate for UART communication")
+	ap.add_argument("-scr", "--screen", type=int, default=1,
+		help="Turn On/Off OSD")
 
 	
 	args = vars(ap.parse_args())
