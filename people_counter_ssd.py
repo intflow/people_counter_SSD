@@ -96,9 +96,7 @@ def classify_frame(net, inputQueue, outputQueue):
             # grab the frame from the input queue, resize it, and
             # construct a blob from it
             frame = inputQueue.get()
-            frame = cv2.resize(frame, (300, 300))
-            blob = cv2.dnn.blobFromImage(frame, 0.007843,
-                (300, 300), 127.5)
+            blob = cv2.dnn.blobFromImage(frame, 0.007843, frame.shape[:2], 127.5)
 
             # set the blob as input to our deep learning object
             # detector and obtain the detections
@@ -205,11 +203,11 @@ def main(args, inputQueue, outputQueue, detections):
 				# resize the frame to have a minimum width(or height) supported by a model, then convert
 				# the frame from BGR to RGB for dlib
 				(H_org, W_org) = frame.shape[:2]
-				W = 320
-				H = 320
+				W = 160
+				H = 160
 				frame_org = frame
 				ratio = H / W
-				frame = cv2.resize(frame, dsize=(320,320), interpolation=cv2.INTER_AREA)
+				frame = cv2.resize(frame, dsize=(160,160), interpolation=cv2.INTER_AREA)
 				(H, W) = frame.shape[:2]
 				r_x = W_org / W
 				r_y = H_org / H
