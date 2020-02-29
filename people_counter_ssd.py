@@ -90,7 +90,21 @@ def init_ipcam():
 		
 		return vs, vs2, TWOCAM
 
-def thread_vid(args, vs, outQue1, outQue2):
+def thread_vid(args, outQue1, outQue2):
+	
+	# Video Get Thread
+	# if a video path was not supplied, grab a reference to the webcam
+	if not args.get("input", False):
+		print("[INFO] starting video stream...")
+		
+		[vs, vs2, TWOCAM] = init_ipcam()
+		
+	# otherwise, grab a reference to the video file
+	else:
+		print("[INFO] opening video file...")
+		vs = cv2.VideoCapture(args["input"])
+		TWOCAM = 0
+
 	while True:
 		ret, frame = vs.read()
 		if not(ret):
@@ -126,7 +140,7 @@ def thread_vid(args, vs, outQue1, outQue2):
 
 		
 
-def main(args):
+def main(args, outQue1, outQue2):
 
 	try:
 		# Set UART initialization
@@ -171,7 +185,6 @@ def main(args):
 	# map each unique object ID to a TrackableObject
 	ct = CentroidTracker(maxDisappeared=5, maxDistance=20)
 
-
 	tracker = cv2.TrackerMOSSE_create
 	trackers = []
 	trackableObjects = {}
@@ -194,28 +207,6 @@ def main(args):
 	if sys.platform == "win32":
 		import os, msvcrt
 		msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
-
-
-	# Video Get Thread
-	# if a video path was not supplied, grab a reference to the webcam
-	if not args.get("input", False):
-		print("[INFO] starting video stream...")
-		
-		[vs, vs2, TWOCAM] = init_ipcam()
-		
-		
-	# otherwise, grab a reference to the video file
-	else:
-		print("[INFO] opening video file...")
-		vs = cv2.VideoCapture(args["input"])
-		TWOCAM = 0	
-
-	outQue1 = Queue(maxsize=1)
-	outQue2 = Queue(maxsize=1)
-	p = Process(target=thread_vid, args=(args, vs, outQue1, outQue2))
-	p.daemon = True
-	p.start()
-	p.join()
 
 	# loop over frames from the video stream
 	while True:
@@ -458,4 +449,12 @@ if __name__ == '__main__':
 
 	
 	args = vars(ap.parse_args())
-	main(args)
+
+	outQue1 = Queue(maxsize=1)
+	outQue2 = Queue(maxsize=1)
+	p = Process(target=thread_vid, args=(args, outQue1, outQue2))
+	p.daemon = True
+	p.start()
+	p.join()
+
+	main(args, outQue1, outQue2)
