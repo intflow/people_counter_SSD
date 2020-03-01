@@ -392,7 +392,7 @@ def main(args, inputQueue, outputQueue, detections):
 				totalFrames = 0
 				print(num_person)
 				if UART_WORK == 1:
-					ser.write(num_person.to_bytes(1, byteorder='little'))
+					ser.write(bytes(str(num_person)+"\r\n", encoding='ascii'))
 					print(num_person.to_bytes(1, byteorder='little'))
 
 
