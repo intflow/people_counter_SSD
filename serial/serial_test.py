@@ -3,7 +3,7 @@ import serial
 
 # configure the serial connections (the parameters differs on the device you are connecting to)
 ser = serial.Serial(
-    port='COM3',
+    port='/dev/ttyAMA0',
     baudrate=9600,
     parity='N',
     stopbits=1,
