@@ -9,9 +9,9 @@ python3 people_counter_ssd.py \
 	--resize_frame 160 \
 	--uart_port "/dev/ttyUSB0" \
 	--uart_baud 9600 \
-	--input example_01.mp4 \
+	--input "rtsp://admin:intflow3121@192.168.1.64:554/Streaming/Channels/102/" \
 	--output "" \
 	--screen 0
 
-	#--input "rtsp://admin:intflow3121@192.168.1.64:554/Streaming/Channels/102/" \
+	#--input example_01.mp4 \
 	#--output output/output_01.avi
