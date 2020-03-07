@@ -1,5 +1,5 @@
 
-sudo ifconfig eth0 192.168.1.2
+sudo ifconfig eth0 192.168.1.2 up
 
 python3 people_counter_ssd.py \
 	--prototxt models/MobileNetSSD_deploy.prototxt \
@@ -11,7 +11,7 @@ python3 people_counter_ssd.py \
 	--uart_baud 9600 \
 	--input "rtsp://admin:intflow3121@192.168.1.64:554/Streaming/Channels/102/" \
 	--output "" \
-	--screen 1
+	--screen 0
 
 	#--input example_01.mp4 \
 	#--output output/output_01.avi
