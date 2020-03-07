@@ -14,4 +14,4 @@ python3 people_counter_ssd.py \
 	--screen 0
 
 	#--input example_01.mp4 \
-	#--output output/output_01.avi
+	#--screen 0
