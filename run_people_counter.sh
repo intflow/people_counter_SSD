@@ -4,7 +4,7 @@ sudo ifconfig eth0 192.168.1.2 up
 python3 people_counter_ssd.py \
 	--prototxt models/MobileNetSSD_deploy.prototxt \
 	--model models/MobileNetSSD_deploy.caffemodel \
-	--confidence 0.10 \
+	--confidence 0.02 \
 	--skip-frames 3 \
 	--resize_frame 80 \
 	--uart_port "/dev/ttyAMA0" \
