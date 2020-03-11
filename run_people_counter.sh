@@ -4,9 +4,9 @@ sudo ifconfig eth0 192.168.1.2 up
 python3 people_counter_ssd.py \
 	--prototxt models/MobileNetSSD_deploy.prototxt \
 	--model models/MobileNetSSD_deploy.caffemodel \
-	--confidence 0.25 \
+	--confidence 0.10 \
 	--skip-frames 3 \
-	--resize_frame 120 \
+	--resize_frame 80 \
 	--uart_port "/dev/ttyAMA0" \
 	--uart_baud 9600 \
 	--input "rtsp://admin:intflow3121@192.168.1.64:554/Streaming/Channels/102/" \
